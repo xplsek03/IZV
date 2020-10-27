@@ -44,8 +44,19 @@ class DataDownloader:
                  'VYS': '16.csv',
                  'PAK': '17.csv',
                  'LBK': '18.csv',
-                 'KVK': '19.csv'}           
-    
+                 'KVK': '19.csv'}
+
+        # predpripravena hlavicka dat
+        self.header = ['region', 'p1', 'p36', 'p37', 'p2a', 'weekday(p2a)', 'p2b', 'p6', 'p7', 'p8', 'p9',
+         'p10', 'p11', 'p12', 'p13a', 'p13b', 'p13c', 'p14', 'p15', 'p16', 'p17', 'p18', 'p19',
+         'p20', 'p21', 'p22', 'p23', 'p24', 'p27', 'p28', 'p34', 'p35', 'p39', 'p44', 'p45a', 'pr7',
+         'p48a', 'p49', 'p50a', 'p50b', 'p51', 'p52', 'p53', 'p55a', 'p57', 'p58', 'a', 'b', 'c',
+         'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'n', 'o', 'p', 'q', 'r', 's', 't', 'p5a']
+
+        # cache v pameti: tabulky
+        self.cache = {}
+
+
     def download_data(self):
 
         home = requests.get(self.url, headers=self.headers)
@@ -164,23 +175,82 @@ class DataDownloader:
                 ndresult.append(ndwhole[:, i].astype('uint16'))
 
         # vrat tuple se zpracovanym jednim krajem
-        return (['region', 'p1', 'p36', 'p37', 'p2a', 'weekday(p2a)', 'p2b', 'p6', 'p7', 'p8', 'p9',
-                 'p10', 'p11', 'p12', 'p13a', 'p13b', 'p13c', 'p14', 'p15', 'p16', 'p17', 'p18', 'p19',
-                 'p20', 'p21', 'p22', 'p23', 'p24', 'p27', 'p28', 'p34', 'p35', 'p39', 'p44', 'p45a', 'pr7',
-                 'p48a', 'p49', 'p50a', 'p50b', 'p51', 'p52', 'p53', 'p55a', 'p57', 'p58', 'a', 'b', 'c',
-                 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'n', 'o', 'p', 'q', 'r', 's', 't', 'p5a'], ndresult)
-    
-    def get_list(self, regions=None):
+        return (self.header, ndresult)
+
+
+    # slouceni dvou velkych poli - provizorni
+    def _merge(self, dataset, x):
+
+        # sluc kazdy sloupec
+        for i in range(64):
+            dataset[i] = np.concatenate([dataset[i], x[i]])
+
+
+    # overeni jestli existuje cache pickle.gz soubor
+    def _cachefile_exists(self, region):
+
+        if os.path.join
+
+
+    # nahrani obsahu cache do pameti
+    def _cachefile_load(self, region):
+        pass
+
+
+    # ulozeni neceho do cache a zaroven i nacteni do pameti
+    def _cachefile_save(self, table, region):
+        pass
+
+
+    def get_list(self, regions=None, frommain=False):
+
+        # vystup
+        dataset = []
 
         if not regions:
             # vsechny kraje
             regions = [*self.kraje]
             
         try:    
-    
+
+            once = True
+
             for region in regions:
-                _ = self.parse_region_data(region)
-                    
+
+                # CACHE
+
+                # pokud neni v pameti
+                if region not in self.cache:
+
+                    # pokud existuje cache soubor
+                    if self._cachefile_exists(region):
+                        # nacti soubor do pameti
+                        self._cachefile_load(region)
+
+                    # musis zavolat funkci
+                    else:
+                        # tohle jsou data pro kazdy region
+                        _, table = self.parse_region_data(region)
+
+                        # funkce to ulozi do cache a zaroven i do pameti
+                        self._cachefile_save(table, region)
+
+                # pridej do datasetu
+                self._merge(dataset, self.cache[region])
+
+                # pokud se to vola z main
+                if frommain:
+
+                    # vytiskni seznam sloupcu
+                    if once:
+                        print('SLOUPCE:')
+                        print(self.header)
+                        print('\n')
+                        once = False
+
+                    # vytiskni seznam kraju a pocet radku
+                    print(region + ':\t' + str(table[0].shape[0]) + ' radku')
+
         except OSError:
             print('Spatne zadany argument [seznam regionu] nebo region.')
 
@@ -190,6 +260,6 @@ if __name__ == "__main__":
     print(datetime.now())
 
     dd = DataDownloader()
-    dd.get_list()
+    dd.get_list(['PHA', 'VYS', 'OLK'], frommain=True)
 
     print(datetime.now())
