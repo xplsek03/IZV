@@ -8,7 +8,7 @@ from bs4 import BeautifulSoup
 import os
 import zipfile   
 import csv 
-from io import TextIOWrapper, BufferedReader, StringIO
+from io import TextIOWrapper
 import numpy as np
 from datetime import datetime
 
@@ -47,67 +47,42 @@ class DataDownloader:
                  'KVK': '19.csv'}           
     
     def download_data(self):
-        
+
         home = requests.get(self.url, headers=self.headers)
-        
+
         # vezmi linky
         soup = BeautifulSoup(home.text, 'html.parser')
-        
+
         # vezmi vsechny tr krome posledniho
         trs_links = []
-        
+
         trs = soup.findAll('tr')
         trs_links.append(trs[11].findAll('a')[-1].get('href'))
         trs_links.append(trs[23].findAll('a')[-1].get('href'))
         trs_links.append(trs[35].findAll('a')[-1].get('href'))
         trs_links.append(trs[47].findAll('a')[-1].get('href'))
-        
+
         # najdi posledni tr s odkazem
         i = -1
         while True:
-            
+
             a = trs[i].findAll('a')
             if a:
                 trs_links.append(a[-1].get('href'))
                 break
             i -= 1
-        
+
         # postupne stahni kazdy soubor
         for link in trs_links:
             with requests.get(self.url + link, stream=True) as r:
                 r.raise_for_status()
-
-                # nazev tohoto zipu i s cestou
-                filename = os.path.join(self.target, link.split('/')[-1])
-
-                # konkretni stahovany zip
-                with open(filename, 'wb') as file:
+                with open(os.path.join(self.target, link.split('/')[-1]), 'wb') as file:
                     for chunk in r.iter_content(chunk_size=8192):
                         file.write(chunk)
 
-                # rozbal zip do jedne slozky
-                with zipfile.ZipFile(filename, 'r') as zf:
 
-                    # pokud jeste neexistuje slozka s tim nazvem
-                    if not os.path.exists(filename.split('.')[0]):
-                        os.makedirs(filename.split('.')[0])
-
-                    # rozbal vsechny soubory
-                    zf.extractall(filename.split('.')[0])
-
-            
     # ziskej data jednoho z regionu
     def parse_region_data(self, region):
-
-        # zjisti kolik existuje slozek
-        dirs = [f for f in os.listdir(self.target) if os.path.isdir(os.path.join(self.target, f))]
-
-        # pokud chybi nektery z adresaru, spravne by tam nemel byt ani jeden (pokud jsem ho teda sam nesmazal). stahni je radsi znovu vsechny at je jistota ze je to ok
-        if len(dirs) != 5:
-            self.download_data()
-            
-            # a aktualizuj seznam
-            dirs = [f for f in os.listdir(self.target) if os.path.isdir(os.path.join(self.target, f))]
 
         # prazdne docasne ndarray do ktereho budes appendit
         ndwhole = np.empty([0, 64])
@@ -115,20 +90,31 @@ class DataDownloader:
         # vysledne pole sloupcu
         ndresult = []
 
-        # pro konkretni region vytahni vsechna data ze vsech slozek
-        for d in dirs:
+        # zjisti kolik existuje zipu stazenych
+        zips = [f for f in os.listdir(self.target) if f.endswith('.zip')]
+
+        # pokud chybi nektery ze zipu, spravne by tam nemel byt ani jeden (pokud jsem ho teda sam nesmazal). stahni je radsi znovu vsechny at je jistota ze je to ok
+        if len(zips) != 5:
+            self.download_data()
+
+            # a aktualizuj seznam
+            zips = [f for f in os.listdir(self.target) if f.endswith('.zip')]
+
+        # pro konkretni region vytahni vsechna data ze vsech souboru
+        for z in zips:
 
             try:
 
-                with open(os.path.join(self.target, d, self.kraje[region]), 'r') as f:
+                with zipfile.ZipFile(os.path.join(self.target, z)) as zf:
 
-                    # vyrob csv reader
-                    reader = csv.reader(f, delimiter=';')
-                    # preved data na numpy pole
-                    array = np.asarray([data for data in reader], dtype=str)
+                    # nacti konkretni soubor kraje
+                    with zf.open(self.kraje[region], 'r') as f:
 
-                    # strc data do celkoveho pole
-                    ndwhole = np.concatenate([ndwhole, array])
+                        # vyrob csv reader
+                        reader = csv.reader(TextIOWrapper(f, encoding='windows-1250'), delimiter=';')
+
+                        # strc data do celkoveho pole
+                        ndwhole = np.concatenate([ndwhole, np.asarray([data for data in reader], dtype=str)])
 
             # kdyby nahodou ten soubor mezitim nekdo smazal
             except (OSError, KeyError) as e:
@@ -136,35 +122,47 @@ class DataDownloader:
 
         # KROK 2 - zpracuj celkove pole a rozdel ho na jednotlive sloupce
 
-        # vyrad prazdna mista a XXka
+        # vyrad prazdna mista
         ndwhole[ndwhole == ''] = -1
-        ndwhole[ndwhole == 'XX'] = -1
 
         # nastrc tam kraje
         ndresult.append(np.full((ndwhole.shape[0]), region))
 
+        # vytvor sety
+        aset = {1, 4, 6, 7, 8, 9, 10, 11, 13, 14, 15, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 35, 36, 37, 38, 39, 40, 42, 43, 44, 63, 53}
+        bset = {0, 3, 45, 46, 49, 50, 51, 52, 54, 55, 57, 58, 59, 56, 62}
+        cset = {12, 16, 41}
+        dset = {2, 60, 61}
+        eset = {47, 48}
+
         # nastrkej je do hlavniho pole, sloupce 0-63 z csv
         for i in range(64):
             # uint8
-            if i in {1, 4, 6, 7, 8, 9, 10, 11, 13, 14, 15, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31,
-                     32, 33, 34, 35, 36, 37, 38, 39, 40, 42, 43, 44, 63}:
+            if i in aset:
                 ndresult.append(ndwhole[:, i].astype('uint8'))
             # stringy, co nadelas
-            elif i in {0, 3, 45, 46, 49, 50, 51, 52, 54, 55, 57, 58, 59, 56, 62}:
+            elif i in bset:
                 ndresult.append(ndwhole[:, i].astype('str'))
             # delsi inty, ale ne moc dlouhe
-            elif i in {12, 16, 41}:
+            elif i in cset:
                 ndresult.append(ndwhole[:, i].astype('uint16'))
             # dlouhe inty do 4294967295
-            elif i in {2, 60, 61}:
+            elif i in dset:
                 ndresult.append(ndwhole[:, i].astype('uint32'))
             # souradnice s jistotou
-            elif i in {47, 48}:
-                ndresult.append(ndwhole[:, i].astype('str'))
-            # over cas jestli je validni
+            elif i in eset:
+                ndwhole[:, i][ndwhole[:, i] == 'D:'] = -1
+                ndwhole[:, i][ndwhole[:, i] == 'E:'] = -1
+                ndresult.append(np.core.defchararray.replace(ndwhole[:, i],',', '.').astype('complex64'))
+            # over XX
+            elif i  == 34:
+                ndwhole[:, i][ndwhole[:, i] == 'XX'] = -1
+                ndresult.append(ndwhole[:, i].astype('uint8'))
+            # over cas
             elif i == 5:
-                pass
-    
+                ndwhole[:, i][np.logical_or(np.char.startswith(ndwhole[:, i], '25'), np.char.endswith(ndwhole[:, i], '60'))] = -1
+                ndresult.append(ndwhole[:, i].astype('uint16'))
+
         # vrat tuple se zpracovanym jednim krajem
         return (['region', 'p1', 'p36', 'p37', 'p2a', 'weekday(p2a)', 'p2b', 'p6', 'p7', 'p8', 'p9',
                  'p10', 'p11', 'p12', 'p13a', 'p13b', 'p13c', 'p14', 'p15', 'p16', 'p17', 'p18', 'p19',
@@ -174,9 +172,6 @@ class DataDownloader:
     
     def get_list(self, regions=None):
 
-        print('start')
-        print(datetime.now())
-
         if not regions:
             # vsechny kraje
             regions = [*self.kraje]
@@ -184,22 +179,17 @@ class DataDownloader:
         try:    
     
             for region in regions:
-                
-                # pokud je region platny
-                if region in self.kraje:
-                    self.parse_region_data(region)
+                _ = self.parse_region_data(region)
                     
-                # region neexistuje
-                else:
-                    print('Region neexistuje.')
-                    
-        except TypeError:
-            print('Spatne zadany argument [seznam regionu].')
+        except OSError:
+            print('Spatne zadany argument [seznam regionu] nebo region.')
 
-        print(datetime.now())
-        print('END')
     
 if __name__ == "__main__":
-    
+
+    print(datetime.now())
+
     dd = DataDownloader()
     dd.get_list()
+
+    print(datetime.now())
