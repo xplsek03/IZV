@@ -5,12 +5,14 @@
 
 import requests
 from bs4 import BeautifulSoup
+import gzip
 import os
 import zipfile   
 import csv 
 from io import TextIOWrapper
 import numpy as np
 from datetime import datetime
+import pickle
 
 
 class DataDownloader:
@@ -181,30 +183,52 @@ class DataDownloader:
     # slouceni dvou velkych poli - provizorni
     def _merge(self, dataset, x):
 
-        # sluc kazdy sloupec
-        for i in range(64):
-            dataset[i] = np.concatenate([dataset[i], x[i]])
+        # dataset je zatim prazdny, inicializuj
+        if not dataset:
+            dataset = x
+
+        # uz v nem neco je
+        else:
+            # sluc kazdy sloupec
+            for i in range(64):
+                dataset[i] = np.concatenate([dataset[i], x[i]])
 
 
     # overeni jestli existuje cache pickle.gz soubor
     def _cachefile_exists(self, region):
 
-        if os.path.join
+        # zkontroluj jeslti soubor existuje
+        if os.path.isfile(os.path.join(self.target, self.cache_filename.format(region))):
+            return True
+        return False
 
 
-    # nahrani obsahu cache do pameti
+    # nahrani obsahu cache souboru do pameti
     def _cachefile_load(self, region):
-        pass
+
+        # rozbal a vezmi obsah souboru
+        with gzip.open(os.path.join(self.target, self.cache_filename.format(region)), 'rb') as f:
+            # pickle je nebezpecnej..
+            # nahrej soubor do pameti
+            self.cache[region] = pickle.load(f)
 
 
     # ulozeni neceho do cache a zaroven i nacteni do pameti
     def _cachefile_save(self, table, region):
-        pass
+
+        # uloz ty data do pameti
+        self.cache[region] = table
+
+        # otevri si cilovej soubor
+        with gzip.open(os.path.join(self.target, self.cache_filename.format(region)), 'ab') as f:
+            # pickle je nebezpecnej..
+            # uloz data do souboru
+            pickle.dump(table, f)
 
 
     def get_list(self, regions=None, frommain=False):
 
-        # vystup
+        # vystup vsech dat zadanych kraju
         dataset = []
 
         if not regions:
@@ -249,7 +273,7 @@ class DataDownloader:
                         once = False
 
                     # vytiskni seznam kraju a pocet radku
-                    print(region + ':\t' + str(table[0].shape[0]) + ' radku')
+                    print(region + ':\t' + str(self.cache[region][0].shape[0]) + ' radku')
 
         except OSError:
             print('Spatne zadany argument [seznam regionu] nebo region.')
@@ -257,9 +281,5 @@ class DataDownloader:
     
 if __name__ == "__main__":
 
-    print(datetime.now())
-
     dd = DataDownloader()
-    dd.get_list(['PHA', 'VYS', 'OLK'], frommain=True)
-
-    print(datetime.now())
+    dd.get_list(frommain=True)
