@@ -110,7 +110,7 @@ class DataDownloader:
             dirs = [f for f in os.listdir(self.target) if os.path.isdir(os.path.join(self.target, f))]
 
         # prazdne docasne ndarray do ktereho budes appendit
-        ndwhole = np.empty([0,64])
+        ndwhole = np.empty([0, 64])
 
         # vysledne pole sloupcu
         ndresult = []
@@ -143,16 +143,14 @@ class DataDownloader:
         # nastrc tam kraje
         ndresult.append(np.full((ndwhole.shape[0]), region))
 
-
         # nastrkej je do hlavniho pole, sloupce 0-63 z csv
         for i in range(64):
             # uint8
             if i in {1, 4, 6, 7, 8, 9, 10, 11, 13, 14, 15, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31,
                      32, 33, 34, 35, 36, 37, 38, 39, 40, 42, 43, 44, 63}:
                 ndresult.append(ndwhole[:, i].astype('uint8'))
-
             # stringy, co nadelas
-            elif i in {0, 3, 51, 52, 54, 55, 58, 59, 62, 49, 50, 45, 46, 56}:
+            elif i in {0, 3, 45, 46, 49, 50, 51, 52, 54, 55, 57, 58, 59, 56, 62}:
                 ndresult.append(ndwhole[:, i].astype('str'))
             # delsi inty, ale ne moc dlouhe
             elif i in {12, 16, 41}:
@@ -166,13 +164,13 @@ class DataDownloader:
             # over cas jestli je validni
             elif i == 5:
                 pass
-
-
-        # vytvor header pro cache
-        header = ['region', 'p1', 'p36', 'p37', 'p2a', 'weekday(p2a)', 'p2b', 'p6', 'p7', 'p8', 'p9', 'p10', 'p11', 'p12', 'p13a', 'p13b', 'p13c', 'p14', 'p15', 'p16', 'p17', 'p18', 'p19', 'p20', 'p21', 'p22', 'p23', 'p24', 'p27', 'p28', 'p34', 'p35', 'p39', 'p44', 'p45a', 'pr7', 'p48a', 'p49', 'p50a', 'p50b', 'p51', 'p52', 'p53', 'p55a', 'p57', 'p58', 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'n', 'o', 'p', 'q', 'r', 's', 't', 'p5a']
     
         # vrat tuple se zpracovanym jednim krajem
-        return (header, ndresult)
+        return (['region', 'p1', 'p36', 'p37', 'p2a', 'weekday(p2a)', 'p2b', 'p6', 'p7', 'p8', 'p9',
+                 'p10', 'p11', 'p12', 'p13a', 'p13b', 'p13c', 'p14', 'p15', 'p16', 'p17', 'p18', 'p19',
+                 'p20', 'p21', 'p22', 'p23', 'p24', 'p27', 'p28', 'p34', 'p35', 'p39', 'p44', 'p45a', 'pr7',
+                 'p48a', 'p49', 'p50a', 'p50b', 'p51', 'p52', 'p53', 'p55a', 'p57', 'p58', 'a', 'b', 'c',
+                 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'n', 'o', 'p', 'q', 'r', 's', 't', 'p5a'], ndresult)
     
     def get_list(self, regions=None):
 
