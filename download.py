@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-@author: kali
+@author: xplsek03
 """
 
 import requests
@@ -19,15 +19,28 @@ class DataDownloader:
     
     
     def __init__(self, url='https://ehw.fit.vutbr.cz/izv/', folder='data', cache_filename='data_{}.pkl.gz'):
-        
+
+        '''
+        Metoda nastavuje nutne atributy pro vytvoreni instance DataDownloader.
+
+        Argumenty:
+        url: adresa, ze ktere se stahuji archivy
+        folder: absolutni nebo relativni cesta k adresari, kam se maji ukladat cache a stazene soubory
+        cache_filename: sablona nazvu cache souboru
+        '''
+
         self.url = url
         self.folder = folder
         self.cache_filename = cache_filename
   
-        # vyres uvodni adresar
+        ##BUG
         self.target = os.path.join(os.getcwd(), self.folder)
+
+        # pokud cesta neexistuje, vytvor ji
         if not os.path.exists(self.target):
            os.makedirs(self.target)
+
+        ##BUG - pokud cesta neni adresar
 
         # fake hlavicka
         self.headers = {'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/39.0.2171.95 Safari/537.36'}
@@ -55,18 +68,23 @@ class DataDownloader:
          'p48a', 'p49', 'p50a', 'p50b', 'p51', 'p52', 'p53', 'p55a', 'p57', 'p58', 'a', 'b', 'c',
          'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'n', 'o', 'p', 'q', 'r', 's', 't', 'p5a']
 
-        # cache v pameti: tabulky
+        # cache v pameti: slovnik kraj:tabulka
         self.cache = {}
 
 
     def download_data(self):
 
+        '''
+        Metoda provede stazeni dat ze zadane adresy.
+        '''
+
+        # GET request
         home = requests.get(self.url, headers=self.headers)
 
-        # vezmi linky
+        # Soup objekt
         soup = BeautifulSoup(home.text, 'html.parser')
 
-        # vezmi vsechny tr krome posledniho
+        # seznam pro konkretni odkazy A v ramci prvku TR
         trs_links = []
 
         trs = soup.findAll('tr')
@@ -75,10 +93,10 @@ class DataDownloader:
         trs_links.append(trs[35].findAll('a')[-1].get('href'))
         trs_links.append(trs[47].findAll('a')[-1].get('href'))
 
-        # najdi posledni tr s odkazem
+        # najdi posledni dostupne TR s odkazem A
         i = -1
-        while True:
 
+        while True:
             a = trs[i].findAll('a')
             if a:
                 trs_links.append(a[-1].get('href'))
@@ -94,8 +112,17 @@ class DataDownloader:
                         file.write(chunk)
 
 
-    # ziskej data jednoho z regionu
     def parse_region_data(self, region):
+
+        '''
+        Metoda ziska data z jednoho konkretniho regionu.
+
+        Argumenty:
+        region: string oznacujici REGION
+
+        Navraci:
+        tuple([seznam sloupcu tabulky], [seznam jednotlivych numpy poli reprezentujicich sloupce tabulky])
+        '''
 
         # prazdne docasne ndarray do ktereho budes appendit
         ndwhole = np.empty([0, 64])
@@ -143,7 +170,7 @@ class DataDownloader:
 
         # vytvor sety
         aset = {1, 4, 6, 7, 8, 9, 10, 11, 13, 14, 15, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 35, 36, 37, 38, 39, 40, 42, 43, 44, 63, 53}
-        bset = {0, 3, 45, 46, 49, 50, 51, 52, 54, 55, 57, 58, 59, 56, 62}
+        bset = {0, 45, 46, 49, 50, 51, 52, 54, 55, 57, 58, 59, 56, 62}
         cset = {12, 16, 41}
         dset = {2, 60, 61}
         eset = {47, 48}
@@ -171,6 +198,9 @@ class DataDownloader:
             elif i  == 34:
                 ndwhole[:, i][ndwhole[:, i] == 'XX'] = -1
                 ndresult.append(ndwhole[:, i].astype('uint8'))
+            # konvertuj datum
+            elif i == 3:
+                ndresult.append(ndwhole[:, i].astype('str')) # datetime64
             # over cas
             elif i == 5:
                 ndwhole[:, i][np.logical_or(np.char.startswith(ndwhole[:, i], '25'), np.char.endswith(ndwhole[:, i], '60'))] = -1
@@ -180,8 +210,15 @@ class DataDownloader:
         return (self.header, ndresult)
 
 
-    # slouceni dvou velkych poli - provizorni
     def _merge(self, dataset, x):
+
+        '''
+        Pomocna metoda pro slouceni dat z prave nacteneho souboru a vysledneho pole sloupcu
+
+        Argumenty:
+        dataset: vysledne pole sloupcu
+        x: data z prave nacteneho souboru
+        '''
 
         # dataset je zatim prazdny, inicializuj
         if not dataset:
@@ -194,8 +231,18 @@ class DataDownloader:
                 dataset[i] = np.concatenate([dataset[i], x[i]])
 
 
-    # overeni jestli existuje cache pickle.gz soubor
     def _cachefile_exists(self, region):
+
+        '''
+        Metoda overi zda existuje cache pickle soubor.
+
+        Argumenty:
+        region: kod REGIONU
+
+        Navraci:
+        True: soubor existuje
+        False: soubor neexistuje
+        '''
 
         # zkontroluj jeslti soubor existuje
         if os.path.isfile(os.path.join(self.target, self.cache_filename.format(region))):
@@ -203,8 +250,14 @@ class DataDownloader:
         return False
 
 
-    # nahrani obsahu cache souboru do pameti
     def _cachefile_load(self, region):
+
+        '''
+        Metoda nahraje obsah cache souboru do pameti.
+
+        Argumenty:
+        region: kod REGIONU
+        '''
 
         # rozbal a vezmi obsah souboru
         with gzip.open(os.path.join(self.target, self.cache_filename.format(region)), 'rb') as f:
@@ -213,8 +266,15 @@ class DataDownloader:
             self.cache[region] = pickle.load(f)
 
 
-    # ulozeni neceho do cache a zaroven i nacteni do pameti
     def _cachefile_save(self, table, region):
+
+        '''
+        Metoda ulozi do pickle cache souboru tabulku s daty jednoho kraje. Zaroven nacte data do cache v pameti.
+
+        Argumenty:
+        table: pole sloupcu tabulky s daty kraje
+        region: kod REGIONU
+        '''
 
         # uloz ty data do pameti
         self.cache[region] = table
@@ -228,6 +288,17 @@ class DataDownloader:
 
     def get_list(self, regions=None, frommain=False):
 
+        '''
+        Metoda umoznuje ziskat data pro konkretni regiony.
+
+        Argumenty:
+        regions: seznam kodu REGIONU. Vychozi hodnota None (vsechny dostupne regiony).
+        frommain: jestli je funkce volana z __main__. Vychozi hodnota: False (neni volana z __main__).
+
+        Navraci:
+        tuple([seznam sloupcu tabulky], [seznam jednotlivych numpy poli reprezentujicich sloupce tabulek danych regionu])
+        '''
+
         # vystup vsech dat zadanych kraju
         dataset = []
 
@@ -237,11 +308,13 @@ class DataDownloader:
             
         try:    
 
+            # tiskni hlavicku tabulky pouze jednou
             once = True
 
+            # pro kazdy region
             for region in regions:
 
-                # CACHE
+                # CACHE START
 
                 # pokud neni v pameti
                 if region not in self.cache:
@@ -251,7 +324,7 @@ class DataDownloader:
                         # nacti soubor do pameti
                         self._cachefile_load(region)
 
-                    # musis zavolat funkci
+                    # musis zavolat funkci parse_region_data
                     else:
                         # tohle jsou data pro kazdy region
                         _, table = self.parse_region_data(region)
@@ -259,8 +332,16 @@ class DataDownloader:
                         # funkce to ulozi do cache a zaroven i do pameti
                         self._cachefile_save(table, region)
 
-                # pridej do datasetu
-                self._merge(dataset, self.cache[region])
+                # CACHE END
+
+                # pridej do datasetu, pokud uz v nem neco je
+                if dataset:
+                    # sluc kazdy sloupec
+                    for i in range(64):
+                        dataset[i] = np.concatenate([dataset[i], self.cache[region][i]])
+                # pokud v datasetu jeste nic neni
+                else:
+                    dataset = self.cache[region]
 
                 # pokud se to vola z main
                 if frommain:
@@ -275,11 +356,16 @@ class DataDownloader:
                     # vytiskni seznam kraju a pocet radku
                     print(region + ':\t' + str(self.cache[region][0].shape[0]) + ' radku')
 
-        except OSError:
+            # vrat dataset
+            return (self.header, dataset)
+
+        except TypeError:
             print('Spatne zadany argument [seznam regionu] nebo region.')
 
     
-if __name__ == "__main__":
+if __name__ == '__main__':
 
+    # pokud je spousteno samostatne, proved nacteni vybranych kraju
     dd = DataDownloader()
-    dd.get_list(frommain=True)
+    # nacti tri vybrane kraje
+    dd.get_list(region=['VYS', 'STC', 'JHC'], frommain=True)
