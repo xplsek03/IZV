@@ -18,7 +18,7 @@ import pickle
 class DataDownloader:
     
     
-    def __init__(self, url='https://ehw.fit.vutbr.cz/izv/', folder='data', cache_filename='data_{}.pkl.gz'):
+    def __init__(self, url='https://ehw.fit.vutbr.cz/izv/', folder='./data', cache_filename='data_{}.pkl.gz'):
 
         '''
         Metoda nastavuje nutne atributy pro vytvoreni instance DataDownloader.
@@ -32,15 +32,15 @@ class DataDownloader:
         self.url = url
         self.folder = folder
         self.cache_filename = cache_filename
-  
-        ##BUG
-        self.target = os.path.join(os.getcwd(), self.folder)
 
         # pokud cesta neexistuje, vytvor ji
-        if not os.path.exists(self.target):
-           os.makedirs(self.target)
+        try:
+            if not os.path.exists(self.folder):
+                os.makedirs(self.folder)
 
-        ##BUG - pokud cesta neni adresar
+        except OSError:
+            print('Zadana cesta neni validni.')
+            exit()
 
         # fake hlavicka
         self.headers = {'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/39.0.2171.95 Safari/537.36'}
@@ -107,7 +107,7 @@ class DataDownloader:
         for link in trs_links:
             with requests.get(self.url + link, stream=True) as r:
                 r.raise_for_status()
-                with open(os.path.join(self.target, link.split('/')[-1]), 'wb') as file:
+                with open(os.path.join(self.folder, link.split('/')[-1]), 'wb') as file:
                     for chunk in r.iter_content(chunk_size=8192):
                         file.write(chunk)
 
@@ -131,21 +131,21 @@ class DataDownloader:
         ndresult = []
 
         # zjisti kolik existuje zipu stazenych
-        zips = [f for f in os.listdir(self.target) if f.endswith('.zip')]
+        zips = [f for f in os.listdir(self.folder) if f.endswith('.zip')]
 
         # pokud chybi nektery ze zipu, spravne by tam nemel byt ani jeden (pokud jsem ho teda sam nesmazal). stahni je radsi znovu vsechny at je jistota ze je to ok
         if len(zips) != 5:
             self.download_data()
 
             # a aktualizuj seznam
-            zips = [f for f in os.listdir(self.target) if f.endswith('.zip')]
+            zips = [f for f in os.listdir(self.folder) if f.endswith('.zip')]
 
         # pro konkretni region vytahni vsechna data ze vsech souboru
         for z in zips:
 
             try:
 
-                with zipfile.ZipFile(os.path.join(self.target, z)) as zf:
+                with zipfile.ZipFile(os.path.join(self.folder, z)) as zf:
 
                     # nacti konkretni soubor kraje
                     with zf.open(self.kraje[region], 'r') as f:
@@ -245,7 +245,7 @@ class DataDownloader:
         '''
 
         # zkontroluj jeslti soubor existuje
-        if os.path.isfile(os.path.join(self.target, self.cache_filename.format(region))):
+        if os.path.isfile(os.path.join(self.folder, self.cache_filename.format(region))):
             return True
         return False
 
@@ -260,7 +260,7 @@ class DataDownloader:
         '''
 
         # rozbal a vezmi obsah souboru
-        with gzip.open(os.path.join(self.target, self.cache_filename.format(region)), 'rb') as f:
+        with gzip.open(os.path.join(self.folder, self.cache_filename.format(region)), 'rb') as f:
             # pickle je nebezpecnej..
             # nahrej soubor do pameti
             self.cache[region] = pickle.load(f)
@@ -280,7 +280,7 @@ class DataDownloader:
         self.cache[region] = table
 
         # otevri si cilovej soubor
-        with gzip.open(os.path.join(self.target, self.cache_filename.format(region)), 'ab') as f:
+        with gzip.open(os.path.join(self.folder, self.cache_filename.format(region)), 'ab') as f:
             # pickle je nebezpecnej..
             # uloz data do souboru
             pickle.dump(table, f)
@@ -368,4 +368,4 @@ if __name__ == '__main__':
     # pokud je spousteno samostatne, proved nacteni vybranych kraju
     dd = DataDownloader()
     # nacti tri vybrane kraje
-    dd.get_list(region=['VYS', 'STC', 'JHC'], frommain=True)
+    dd.get_list(regions=['VYS', 'STC', 'JHC'], frommain=True)
