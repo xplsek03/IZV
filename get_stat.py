@@ -78,22 +78,55 @@ def plot_stat(data_source, kraje, fig_location=None, show_figure=False):
     # pokud se ma ulozit
     if fig_location:
 
-        ##BUG: validni cestu
-        os.makedirs(os.path.dirname(fig_location), exist_ok=True)
-        fig.savefig(fig_location, dpi=fig.dpi)
+        # kdyby nahodou mezitim smazal ten vytvoreny adresar
+        try:
+            os.makedirs(os.path.dirname(fig_location), exist_ok=True)
+            fig.savefig(fig_location, dpi=fig.dpi)
+
+        except OSError:
+            print('Neco s epokazilo pri vytvareni ciloveho souboru.')
+
 
 
 if __name__ == '__main__':
 
-    ##BUG: dodelej parser
+    # parser argumentu z cmd
     parser = argparse.ArgumentParser(description='IZV1 - xplsek03')
-    parser.add_argument("--show_figure", action="store", dest="show_figure", default=False)
+    parser.add_argument("--show_figure", action="store_true")
+    parser.add_argument("--fig_location", action="store", dest="fig_location", default=None)
+
+    # argumenty prejate z prikazove radky
+    arguments = parser.parse_args()
 
     dd = DataDownloader()
 
     # vybrane kraje
     kraje = ['VYS', 'STC', 'JHC']
 
-    # graf
-    plot_stat(dd.get_list(kraje)[1], kraje, show_figure=True, fig_location='./data.png')
+    # pokud byla zadana cesta k ulozeni souboru
+    if arguments.fig_location:
 
+        # rozdel na nazev souboru a cestu
+        path, file = os.path.split(arguments.fig_location)
+
+        # validace 1
+        if not path:
+            print('Neni zadana cesta.')
+            exit()
+
+        # validace 2
+        if not file:
+            print('Neni zadan nazev souboru.')
+            exit()
+
+        # over spravnost cesty, pripadne ji vytvor
+        try:
+            if not os.path.exists(path):
+                os.makedirs(path)
+
+        # neco se pokazilo
+        except OSError:
+            print('Spatne zadana cesta nebo nema prava k zapisu.')
+            exit()
+
+    plot_stat(dd.get_list(kraje)[1], kraje, show_figure=arguments.show_figure, fig_location=arguments.fig_location)
